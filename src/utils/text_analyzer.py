@@ -35,14 +35,17 @@ class TextAnalyzer:
             self.stop_words = set()
 
     @staticmethod
-    @jit(nopython=True)
-    def _calculate_stats(lengths: np.ndarray) -> Dict[str, float]:
-        """Optimized calculation of text statistics using numba."""
+    def _calculate_stats(lengths: Union[np.ndarray, pd.Series]) -> Dict[str, float]:
+        """Calculate text statistics using numpy/pandas operations."""
+        # Convert to numpy array if it's a pandas Series
+        if isinstance(lengths, pd.Series):
+            lengths = lengths.to_numpy()
+            
         return {
-            'mean_length': np.mean(lengths),
-            'max_length': np.max(lengths),
-            'min_length': np.min(lengths),
-            'total_texts': len(lengths)
+            'mean_length': float(np.mean(lengths)),
+            'max_length': float(np.max(lengths)),
+            'min_length': float(np.min(lengths)),
+            'total_texts': int(len(lengths))
         }
 
     def preprocess_text(self, text: Union[str, pd.Series]) -> Union[List[str], pd.Series]:
