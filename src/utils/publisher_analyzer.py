@@ -89,7 +89,7 @@ class PublisherAnalyzer:
         plt.tight_layout()
 
     def analyze_publisher_patterns(self, df: pd.DataFrame, 
-                                 date_column: str = 'publication_date') -> pd.DataFrame:
+                                 date_column: str = 'date') -> pd.DataFrame:
         """
         Analyze publishing patterns for top publishers.
         
@@ -101,7 +101,7 @@ class PublisherAnalyzer:
             pd.DataFrame: Publishing patterns by hour for top publishers
         """
         df = df.copy()
-        df[date_column] = pd.to_datetime(df[date_column])
+        df[date_column] = pd.to_datetime(df[date_column],format='ISO8601', errors='coerce')
         
         # Get top 10 publishers
         top_publishers = df[self.publisher_column].value_counts().head(10).index

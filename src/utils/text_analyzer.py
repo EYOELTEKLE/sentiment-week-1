@@ -16,6 +16,8 @@ from numba import jit
 import swifter
 import dask.dataframe as dd
 from tqdm import tqdm
+import random
+
 
 # Initialize parallel processing
 pandarallel.initialize(progress_bar=True)
@@ -41,11 +43,20 @@ class TextAnalyzer:
         if isinstance(lengths, pd.Series):
             lengths = lengths.to_numpy()
             
+    # Handle empty input gracefully
+        if lengths.size == 0:
+            return {
+                'mean_length': 0.0,   # Or float('nan') if that's more appropriate
+                'max_length': 0.0,    # Or float('nan'), or specific handling
+                'min_length': 0.0,    # Or float('nan'), or specific handling
+                'total_texts': 0
+            }
+
         return {
             'mean_length': float(np.mean(lengths)),
             'max_length': float(np.max(lengths)),
             'min_length': float(np.min(lengths)),
-            'total_texts': int(len(lengths))
+            'total_texts': int(lengths.size) # or len(lengths)
         }
 
     def preprocess_text(self, text: Union[str, pd.Series]) -> Union[List[str], pd.Series]:
@@ -60,8 +71,8 @@ class TextAnalyzer:
             Preprocessed tokens (List[str] or pd.Series)
         """
         if isinstance(text, pd.Series):
-            # Use swifter for parallel processing of series
-            return text.swifter.apply(self._preprocess_single_text)
+            # Use pandas apply for processing series
+            return text.apply(self._preprocess_single_text)
         return self._preprocess_single_text(text)
 
     def _preprocess_single_text(self, text: str) -> List[str]:
@@ -87,8 +98,10 @@ class TextAnalyzer:
             if len(texts) > 1_000_000:  # Threshold for using dask
                 ddf = dd.from_pandas(pd.DataFrame({'text': texts}), npartitions=4)
                 lengths = ddf['text'].str.len().compute()
+                print("analyzed huge DS")
             else:
                 lengths = texts.str.len().values
+                print("analyzed min DS")
         else:
             lengths = np.array([len(str(text)) for text in texts])
         
@@ -136,7 +149,7 @@ class TextAnalyzer:
         combined_text = ' '.join([' '.join(self.preprocess_text(text)) for text in texts])
         return WordCloud(width=800, height=400, background_color='white', **kwargs).generate(combined_text)
 
-    def perform_topic_modeling(self, texts: List[str], num_topics: int = 5) -> tuple:
+    def perform_topic_modeling(self, texts: List[str], num_topics: int = 5, sample_size: int = 10000) -> tuple:
         """
         Perform LDA topic modeling on texts.
         
@@ -147,22 +160,19 @@ class TextAnalyzer:
         Returns:
             tuple: (lda_model, corpus, dictionary)
         """
-        # Preprocess texts
-        processed_texts = [self.preprocess_text(text) for text in texts]
-        
-        # Create dictionary
+        # Sample for speed (optional)
+        if len(texts) > sample_size:
+            texts = random.sample(list(texts), sample_size)
+        # Preprocess with progress bar
+        processed_texts = [self.preprocess_text(text) for text in tqdm(texts, desc="Preprocessing for LDA")]
         dictionary = corpora.Dictionary(processed_texts)
-        
-        # Create corpus
         corpus = [dictionary.doc2bow(text) for text in processed_texts]
-        
-        # Train LDA model
-        lda_model = models.LdaModel(
+        lda_model = models.LdaMulticore(
             corpus=corpus,
             id2word=dictionary,
             num_topics=num_topics,
             random_state=42,
-            passes=10
+            passes=10,
+            workers=4
         )
-        
         return lda_model, corpus, dictionary

@@ -29,7 +29,8 @@ class TimeAnalyzer:
             pd.DataFrame: Dataframe with processed datetime column
         """
         df = df.copy()
-        df[self.date_column] = pd.to_datetime(df[self.date_column])
+        # Use format='mixed' to handle both timezone-aware and naive datetime strings
+        df[self.date_column] = pd.to_datetime(df[self.date_column], format='ISO8601', errors='coerce')
         return df
 
     def get_publication_patterns(self, df: pd.DataFrame) -> Dict[str, pd.Series]:
